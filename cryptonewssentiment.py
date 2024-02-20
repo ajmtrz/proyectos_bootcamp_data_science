@@ -37,7 +37,6 @@ from alpaca.data.requests import CryptoBarsRequest
 from alpaca.data.timeframe import TimeFrame
 import ta
 import asyncio
-from tqdm.asyncio import tqdm
 import warnings
 
 warnings.filterwarnings("ignore")
@@ -48,8 +47,8 @@ warnings.filterwarnings("ignore")
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 LENGTH = 15
 TIME_FRAMES = ['H', '4H', 'D']
-MODELS_FOLDER = './models'
-BBDD_FILE = "./project.duckdb"
+MODELS_FOLDER = 'C:/Users/Administrador/Downloads/proyecto_bootcamp/models'
+BBDD_FILE = "C:/Users/Administrador/Downloads/proyecto_bootcamp/project.duckdb"
 
 # %% [markdown]
 # # Funciones
@@ -587,6 +586,7 @@ async def handle_button(timeframe):
     if not os.path.exists(MODELS_FOLDER):
         await train_models(epochs=100)
     # Hacer predicción
+    print(dt.utcnow())
     prediccion, df_model = await model_prediction(timeframe)
     # Obtener las noticias
     min_date = df_model.index.min()
@@ -604,7 +604,7 @@ async def handle_button(timeframe):
 def streamlit_app():
     intervals = {
         'H': f'1 hora',
-        '4H': f'4 hoas',
+        '4H': f'4 horas',
         'D': f'1 día'
     }
     # Configuración de la página de Streamlit
@@ -659,7 +659,7 @@ def streamlit_app():
             with st.container():
                 prediccion = st.session_state.get('prediccion')
                 intervalo = intervals[st.session_state.get('timeframe_selected')]
-                mensaje = f"Predicción para {intervalo}: {'+' if prediccion >= 0 else ''}{prediccion:.3f}%"
+                mensaje = f"Predicción cambio de precio en {intervalo}: {'+' if prediccion >= 0 else ''}{prediccion:.3f}%"
                 if prediccion > 0:
                     st.success(mensaje)
                 elif prediccion == 0:
@@ -717,7 +717,3 @@ def main():
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 if __name__ == "__main__":
     main()
-
-# %% [markdown]
-# Ejecutad esto en consola para abrir la página
-# > streamlit run cryptonewssentiment.py
