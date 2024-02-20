@@ -58,6 +58,32 @@ BBDD_FILE = "C:/Users/Administrador/Downloads/proyecto_bootcamp/project.duckdb"
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def http_get(url, retries=3, timeout=10.0):
+    """
+    Realiza una solicitud HTTP GET asincrónica a la URL especificada y devuelve el contenido en formato JSON.
+
+    Parámetros:
+    - url (str): La URL a la que se realizará la solicitud GET.
+    - retries (int): Número de intentos de reintentos en caso de fallo. Por defecto, se establece en 3.
+    - timeout (float): Tiempo máximo, en segundos, para esperar una respuesta antes de lanzar una excepción por tiempo de espera.
+                     Por defecto, se establece en 10.0 segundos.
+
+    Retorna:
+    - dict: El contenido de la respuesta en formato JSON.
+
+    Excepciones:
+    - httpx.ReadTimeout: Se lanza en caso de que se agote el tiempo de espera en la lectura de la respuesta.
+
+    Ejemplo:
+    ```python
+    url = "https://api.example.com/data"
+    data = await http_get(url, retries=2, timeout=15.0)
+    print(data)
+    ```
+
+    Notas:
+    - En caso de fallo, se realizan reintentos según el número especificado en 'retries'.
+    - Si se produce un fallo después de todos los reintentos, se lanza una excepción httpx.ReadTimeout.
+    """
     for attempt in range(retries):
         try:
             async with httpx.AsyncClient(timeout=timeout) as client:
@@ -77,6 +103,26 @@ async def http_get(url, retries=3, timeout=10.0):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_fear_greed_index_data(limit):
+    """
+    Descarga los datos diarios del índice de miedo y codicia de Bitcoin desde la API de alternative.me.
+
+    Parámetros:
+    - limit (int or None): El número máximo de datos a recuperar. Si es None, se descargan todos los datos disponibles.
+                          Si se proporciona un número, se limita la cantidad de datos descargados.
+
+    Retorna:
+    - dict: Datos diarios del índice de miedo y codicia de Bitcoin en formato JSON.
+
+    Ejemplo:
+    ```python
+    data = await get_fear_greed_index_data(limit=30)
+    print(data)
+    ```
+
+    Notas:
+    - La URL utilizada para la descarga puede incluir un parámetro de límite si se especifica.
+    - Los datos se descargan utilizando la función http_get, que maneja la lógica de reintentos y tiempo de espera.
+    """
     if limit == None:    
         url = "https://api.alternative.me/fng/"
     else:
@@ -87,6 +133,27 @@ async def get_fear_greed_index_data(limit):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_latest_fgi(fecha_desde):
+    """
+    Descarga y retorna los datos actualizados del índice de miedo y codicia de Bitcoin desde la fecha indicada.
+
+    Parámetros:
+    - fecha_desde (datetime or None): La fecha desde la cual se deben recuperar los datos. Si es None, se descargan los datos desde el 2 de marzo de 2022.
+
+    Retorna:
+    - pd.DataFrame: Un DataFrame de pandas que contiene la evolución del índice de miedo y codicia a lo largo del tiempo.
+
+    Ejemplo:
+    ```python
+    fecha_inicio = dt(year=2022, month=3, day=10)
+    df_fgi = await get_latest_fgi(fecha_desde=fecha_inicio)
+    print(df_fgi)
+    ```
+
+    Notas:
+    - La función utiliza la función get_fear_greed_index_data para obtener los datos diarios del índice.
+    - Los datos se convierten en un DataFrame de pandas para facilitar su manipulación y análisis.
+    - Se eliminan duplicados basados en la columna de fechas y se ordena el DataFrame por fecha.
+    """
     # Fecha de último valor fgi
     fecha_ahora = dt.utcnow().replace(second=0, microsecond=0)
     if pd.isna(fecha_desde) or fecha_desde is None:
@@ -116,6 +183,30 @@ async def get_latest_fgi(fecha_desde):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_alphavantage_data(url_params: str, fecha_desde: str, fecha_hasta: str) -> dict:
+    """
+    Descarga datos financieros desde la API Alphavantage utilizando los parámetros de URL proporcionados.
+
+    Parámetros:
+    - url_params (str): Parámetros adicionales para la URL de la solicitud, como símbolo del activo, intervalo de tiempo, etc.
+    - fecha_desde (str): Fecha de inicio en formato YYYY-MM-DD desde la cual se recuperarán los datos.
+    - fecha_hasta (str): Fecha de finalización en formato YYYY-MM-DD hasta la cual se recuperarán los datos.
+
+    Retorna:
+    - dict: Datos financieros descargados desde Alphavantage en formato JSON.
+
+    Ejemplo:
+    ```python
+    params = "symbol=MSFT&interval=1day"
+    start_date = "2022-01-01"
+    end_date = "2022-12-31"
+    financial_data = await get_alphavantage_data(url_params=params, fecha_desde=start_date, fecha_hasta=end_date)
+    print(financial_data)
+    ```
+
+    Notas:
+    - La URL se compone de la URL base de Alphavantage, los parámetros de URL proporcionados, y las fechas especificadas.
+    - Se utiliza la función http_get para realizar la solicitud HTTP asincrónica.
+    """
     api_key = "GPAN46OGIJYO1S0J"
     # Url
     url = f"https://www.alphavantage.co/query?"
@@ -129,6 +220,32 @@ async def get_alphavantage_data(url_params: str, fecha_desde: str, fecha_hasta: 
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_news_sentiment(fecha_desde, fecha_ahora):
+    """
+    Descarga y retorna el sentimiento de noticias sobre Bitcoin desde la fecha indicada hasta la fecha actual.
+
+    Parámetros:
+    - fecha_desde (datetime): Fecha de inicio desde la cual se recuperarán las noticias.
+    - fecha_ahora (datetime): Fecha actual hasta la cual se recuperarán las noticias.
+
+    Retorna:
+    - pd.DataFrame: Un DataFrame de pandas que contiene el sentimiento de noticias sobre Bitcoin.
+
+    Excepciones:
+    - RateLimitExceededException: Se lanza si se excede el límite de solicitudes a la API Alphavantage.
+
+    Ejemplo:
+    ```python
+    start_date = dt(year=2022, month=1, day=1)
+    end_date = dt.utcnow()
+    df_sentiment = await get_news_sentiment(fecha_desde=start_date, fecha_ahora=end_date)
+    print(df_sentiment)
+    ```
+
+    Notas:
+    - La función utiliza la función get_alphavantage_data para obtener las noticias financieras.
+    - Se maneja la excepción RateLimitExceededException si se excede el límite de solicitudes a la API Alphavantage.
+    - Los datos se convierten en un DataFrame de pandas para facilitar su manipulación y análisis.
+    """
     class RateLimitExceededException(Exception):
         pass
     # Sentimiento de noticias
@@ -172,6 +289,26 @@ async def get_news_sentiment(fecha_desde, fecha_ahora):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_latest_news(fecha_desde):
+    """
+    Descarga y retorna las últimas noticias sobre Bitcoin desde la fecha indicada hasta la fecha actual.
+
+    Parámetros:
+    - fecha_desde (datetime or None): La fecha desde la cual se recuperarán las noticias. Si es None, se descargan las noticias desde el 2 de marzo de 2022.
+
+    Retorna:
+    - pd.DataFrame: Un DataFrame de pandas que contiene las últimas noticias sobre Bitcoin organizadas por fecha.
+
+    Ejemplo:
+    ```python
+    fecha_inicio = dt(year=2022, month=3, day=10)
+    df_latest_news = await get_latest_news(fecha_desde=fecha_inicio)
+    print(df_latest_news)
+    ```
+
+    Notas:
+    - La función utiliza la función get_news_sentiment para obtener el sentimiento de noticias.
+    - Se eliminan duplicados basados en la columna de fechas y se ordena el DataFrame por fecha.
+    """
     # Fecha de última noticia
     fecha_ahora = dt.utcnow().replace(second=0, microsecond=0)
     if pd.isna(fecha_desde) or fecha_desde is None:
@@ -187,6 +324,27 @@ async def get_latest_news(fecha_desde):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_prices(fecha_desde, symbols=["BTC/USD"]):
+    """
+    Obtiene los datos de cotización de Bitcoin con un timeframe de un minuto desde la fecha indicada utilizando la API de Alpaca.
+
+    Parámetros:
+    - fecha_desde (datetime): La fecha desde la cual se recuperarán los datos de cotización.
+    - symbols (list): Lista de símbolos de activos financieros para los cuales se obtendrán los datos. Por defecto, se establece como ["BTC/USD"].
+
+    Retorna:
+    - pd.DataFrame: Un DataFrame de pandas que contiene los datos de cotización de Bitcoin con un timeframe de un minuto.
+
+    Ejemplo:
+    ```python
+    start_date = dt(year=2022, month=1, day=1)
+    df_prices = await get_prices(fecha_desde=start_date, symbols=["BTC/USD"])
+    print(df_prices)
+    ```
+
+    Notas:
+    - La función utiliza la clase CryptoHistoricalDataClient de Alpaca para realizar la solicitud de datos de cotización.
+    - Los datos se ajustan y organizan en un DataFrame de pandas para facilitar su manipulación y análisis.
+    """
     client = CryptoHistoricalDataClient()
     request_params = CryptoBarsRequest(
         symbol_or_symbols=symbols,
@@ -203,6 +361,26 @@ async def get_prices(fecha_desde, symbols=["BTC/USD"]):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def get_latest_prices(fecha_desde):
+    """
+    Descarga y retorna los últimos datos de cotización de Bitcoin desde la fecha indicada hasta la fecha actual.
+
+    Parámetros:
+    - fecha_desde (datetime or None): La fecha desde la cual se recuperarán los datos de cotización. Si es None, se descargan los datos desde el 2 de marzo de 2022.
+
+    Retorna:
+    - pd.DataFrame: Un DataFrame de pandas que contiene los últimos datos de cotización de Bitcoin organizados por fecha.
+
+    Ejemplo:
+    ```python
+    fecha_inicio = dt(year=2022, month=3, day=10)
+    df_latest_prices = await get_latest_prices(fecha_desde=fecha_inicio)
+    print(df_latest_prices)
+    ```
+
+    Notas:
+    - La función utiliza la función get_prices para obtener los datos de cotización.
+    - Se eliminan duplicados basados en la columna de fechas y se ordena el DataFrame por fecha.
+    """
     # Fecha de último precio
     fecha_ahora = dt.utcnow().replace(second=0, microsecond=0)
     if pd.isna(fecha_desde) or fecha_desde is None:
@@ -218,6 +396,27 @@ async def get_latest_prices(fecha_desde):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def agg_ta_indicators(df_prices):
+    """
+    Agrega indicadores técnicos al DataFrame de cotizaciones de Bitcoin, incluyendo el MACD y RSI.
+
+    Parámetros:
+    - df_prices (pd.DataFrame): DataFrame de pandas que contiene los datos de cotización de Bitcoin.
+
+    Retorna:
+    - pd.DataFrame: El DataFrame de cotizaciones de Bitcoin con las columnas adicionales de los indicadores técnicos (MACD y RSI).
+
+    Ejemplo:
+    ```python
+    df_prices = await get_latest_prices(fecha_desde=fecha_inicio)
+    df_prices_with_indicators = await agg_ta_indicators(df_prices)
+    print(df_prices_with_indicators)
+    ```
+
+    Notas:
+    - Se utilizan las funciones de la biblioteca ta (Technical Analysis Library) para calcular los indicadores técnicos.
+    - Se agregan al DataFrame las columnas 'macd_line', 'macd_signal', 'macd_diff' correspondientes al MACD.
+    - Se agrega la columna 'rsi' correspondiente al RSI.
+    """
     df_prices['macd_line'] =ta.trend.MACD(close=df_prices['close'], window_slow=26, window_fast=12, window_sign=9, fillna=False).macd()
     df_prices['macd_signal'] =ta.trend.MACD(close=df_prices['close'], window_slow=26, window_fast=12, window_sign=9, fillna=False).macd_signal()
     df_prices['macd_diff'] =ta.trend.MACD(close=df_prices['close'], window_slow=26, window_fast=12, window_sign=9, fillna=False).macd_diff()
@@ -230,6 +429,22 @@ async def agg_ta_indicators(df_prices):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def bbdd_create(BBDD_FILE):
+    """
+    Crea seis tablas en la base de datos DuckDB para almacenar datos financieros y analíticos.
+
+    Parámetros:
+    - BBDD_FILE (str): Ruta del archivo de la base de datos DuckDB.
+
+    Ejemplo:
+    ```python
+    bbdd_file_path = "/path/to/your/database.db"
+    await bbdd_create(BBDD_FILE=bbdd_file_path)
+    ```
+
+    Notas:
+    - Se crean las tablas 'prices', 'news', y 'fgi' para almacenar datos de cotización, noticias y el índice de miedo y codicia respectivamente.
+    - Se crean tablas adicionales para modelos analíticos con diferentes agrupaciones temporales ('D', '4H', 'H').
+    """
     try:
         # Crear una conexión a DuckDB
         conn = duckdb.connect(BBDD_FILE)
@@ -301,6 +516,23 @@ async def bbdd_create(BBDD_FILE):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def bbdd_insert(table, df_input):
+    """
+    Inserta un DataFrame en la tabla especificada en la base de datos DuckDB.
+
+    Parámetros:
+    - table (str): Nombre de la tabla en la que se insertarán los datos.
+    - df_input (pd.DataFrame): DataFrame de pandas que contiene los datos a insertar.
+
+    Ejemplo:
+    ```python
+    table_name = "prices"
+    await bbdd_insert(table=table_name, df_input=df_prices)
+    ```
+
+    Notas:
+    - Se utiliza la conexión a la base de datos DuckDB para insertar el DataFrame en la tabla especificada.
+    - Se utiliza ON CONFLICT DO NOTHING para evitar la inserción de registros duplicados en la tabla.
+    """
     # Insertar el dataframe en su tabla
     try:
         conn = duckdb.connect(BBDD_FILE)
@@ -312,6 +544,26 @@ async def bbdd_insert(table, df_input):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def bbdd_query(query):
+    """
+    Realiza una consulta SQL en la base de datos DuckDB y devuelve el resultado como un DataFrame.
+
+    Parámetros:
+    - query (str): Consulta SQL a ejecutar.
+
+    Retorna:
+    - pd.DataFrame: DataFrame de pandas que contiene los resultados de la consulta SQL.
+
+    Ejemplo:
+    ```python
+    sql_query = "SELECT * FROM prices WHERE fecha >= '2022-01-01'"
+    result_df = await bbdd_query(query=sql_query)
+    print(result_df)
+    ```
+
+    Notas:
+    - Se utiliza la conexión a la base de datos DuckDB para ejecutar la consulta SQL.
+    - Si la consulta devuelve resultados, se devuelve un DataFrame con esos resultados; de lo contrario, se devuelve None.
+    """
     # Consulta
     try:
         conn = duckdb.connect(BBDD_FILE)
@@ -329,6 +581,20 @@ async def bbdd_query(query):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def bbdd_update():
+    """
+    Actualiza las tablas de la base de datos DuckDB mediante la API y agrupando datos en diferentes timeframes.
+
+    Ejemplo:
+    ```python
+    await bbdd_update()
+    ```
+
+    Notas:
+    - Se utiliza un diccionario de funciones (func_dict) que mapea cada tabla con la función correspondiente para actualizarla.
+    - Se comprueba la existencia de la base de datos y se crea si no existe.
+    - Se actualizan las tres tablas iniciales ('fgi', 'news', 'prices') mediante llamadas a las funciones correspondientes.
+    - Se actualizan las tablas adicionales ('H', '4H', 'D') mediante llamadas a la función model_input_data.
+    """
     func_dict = {
         'fgi': get_latest_fgi,
         'news': get_latest_news,
@@ -363,12 +629,33 @@ async def bbdd_update():
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def grouping_dataframe(df_fgi, df_news, df_prices, timeframe):
-    '''
-    TIME_FRAMES can be:
-        1 hora: 'H'
-        4 horas: '4H'
-        1 día: 'D'
-    '''
+    """
+    Agrupa y genera un DataFrame con datos financieros y analíticos para un timeframe específico.
+
+    Parámetros:
+    - df_fgi (pd.DataFrame): DataFrame de pandas que contiene datos del índice de miedo y codicia.
+    - df_news (pd.DataFrame): DataFrame de pandas que contiene datos de noticias.
+    - df_prices (pd.DataFrame): DataFrame de pandas que contiene datos de cotización.
+    - timeframe (str): Marco temporal para la agrupación ('H' para 1 hora, '4H' para 4 horas, 'D' para 1 día).
+
+    Retorna:
+    - pd.DataFrame: DataFrame de pandas que contiene datos agrupados con indicadores técnicos.
+
+    Ejemplo:
+    ```python
+    df_fgi = await bbdd_query("SELECT * FROM fgi")
+    df_news = await bbdd_query("SELECT * FROM news")
+    df_prices = await bbdd_query("SELECT * FROM prices")
+    timeframe = 'H'
+    grouped_df = await grouping_dataframe(df_fgi, df_news, df_prices, timeframe)
+    ```
+
+    Notas:
+    - Se utiliza la función resample de pandas para agrupar los datos de precios en el marco temporal especificado.
+    - Se calcula el precio ponderado por volumen (vwap) y se aplican diversas funciones de agregación.
+    - Se agrega información de noticias y el índice de miedo y codicia según el marco temporal.
+    - Se utiliza la función agg_ta_indicators para agregar indicadores técnicos al DataFrame resultante.
+    """
     # Agrupación de precios
     df = df_prices.resample(timeframe).agg({
         'open': 'first',
@@ -393,6 +680,28 @@ async def grouping_dataframe(df_fgi, df_news, df_prices, timeframe):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def model_input_data(timeframe, model_data_last_date):
+    """
+    Obtiene los datos necesarios para entrenar o predecir el modelo para el timeframe proporcionado.
+
+    Parámetros:
+    - timeframe (str): Marco temporal para el cual se obtendrán los datos ('H' para 1 hora, '4H' para 4 horas, 'D' para 1 día).
+    - model_data_last_date (datetime): Fecha de la última actualización de datos para el modelo.
+
+    Retorna:
+    - pd.DataFrame: DataFrame de pandas con los datos agrupados y preparados para la entrada del modelo.
+
+    Ejemplo:
+    ```python
+    timeframe = 'H'
+    last_update_date = dt(year=2022, month=3, day=15)
+    df_model_input = await model_input_data(timeframe, model_data_last_date=last_update_date)
+    ```
+
+    Notas:
+    - Se utiliza un diccionario (df_dict) para almacenar los datos de las tablas 'fgi', 'news', y 'prices'.
+    - Se realiza una consulta a la base de datos para obtener los datos necesarios y se filtran por la última fecha de actualización del modelo.
+    - Los datos se agrupan y se aplica una transformación de cambio porcentual en el precio de cierre ('close_diff_pct').
+    """
     df_dict = {
         'fgi': None,
         'news': None,
@@ -449,6 +758,27 @@ async def model_input_data(timeframe, model_data_last_date):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def model_create(input_features):
+    """
+    Crea un modelo de red neuronal con dos ramas para procesar datos temporales y de atención.
+
+    Parámetros:
+    - input_features (int): Número de características de entrada.
+
+    Retorna:
+    - tf.keras.Model: Modelo de red neuronal compilado.
+
+    Ejemplo:
+    ```python
+    input_features = 10
+    neural_model = await model_create(input_features)
+    ```
+
+    Notas:
+    - Se utiliza la API funcional de Keras para crear un modelo con dos ramas.
+    - Cada rama consta de una capa convolucional, una capa LSTM de tipo GRU, y una capa de atención de múltiples cabezas.
+    - Las dos ramas convergen en una capa densa y una capa lineal de regresión para la salida.
+    - La función de pérdida utilizada es 'huber_loss' y el optimizador es 'adam'.
+    """
     # Supongamos entradas de 120 pasos de tiempo con 10 características
     input_shape = (LENGTH, input_features)
     inputs = Input(shape=input_shape)
@@ -485,12 +815,33 @@ async def model_create(input_features):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def training_generators(df):
+    """
+    Prepara los generadores de datos para entrenamiento y prueba del modelo.
+
+    Parámetros:
+    - df (pd.DataFrame): DataFrame de pandas con los datos de entrada y salida.
+
+    Retorna:
+    - Tuple: Generadores de series temporales de entrenamiento y prueba, escaladores para características y objetivo.
+
+    Ejemplo:
+    ```python
+    df_data = await model_input_data(timeframe='H', model_data_last_date=dt(year=2022, month=3, day=15))
+    train_gen, test_gen, X_scaler, y_scaler = await training_generators(df_data)
+    ```
+
+    Notas:
+    - Se escalan las características utilizando StandardScaler.
+    - La columna objetivo ('close_diff_pct') se desplaza y escala para el entrenamiento.
+    - Se dividen los datos en conjuntos de entrenamiento y prueba.
+    - Se utilizan generadores de series temporales para facilitar el entrenamiento del modelo.
+    """
     # Escalar características
     X = df.drop('close_diff_pct', axis=1)
     X_scaler = StandardScaler()
     X = X_scaler.fit_transform(X)
-    # Escalar objetivo
-    y = df['close_diff_pct'].values.reshape(-1, 1)
+    # Desplaza y escala columna objetivo
+    y = df['close_diff_pct'].shift(-1).values.reshape(-1, 1)
     y_scaler = StandardScaler()
     y = y_scaler.fit_transform(y)
     # Separar train y test
@@ -503,6 +854,25 @@ async def training_generators(df):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def train_model(table, epochs):
+    """
+    Entrena el modelo correspondiente a un timeframe específico con datos de su tabla correspondiente.
+
+    Parámetros:
+    - table (str): Nombre de la tabla de la base de datos para la cual se entrenará el modelo.
+    - epochs (int): Número de épocas de entrenamiento.
+
+    Ejemplo:
+    ```python
+    await train_model(table='H', epochs=10)
+    ```
+
+    Notas:
+    - Obtiene los datos de la base de datos para la tabla especificada.
+    - Realiza la división de entrenamiento y prueba utilizando la función `training_generators`.
+    - Crea y entrena el modelo utilizando la función `model_create`.
+    - Implementa Early Stopping como medida de control de parada temprana durante el entrenamiento.
+    - Guarda el modelo y los escaladores en archivos para su posterior uso.
+    """
     print(f"### Training {table} model ###")
     try:
         # Get data from bbdd
@@ -557,8 +927,28 @@ async def train_models(epochs):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def model_prediction(timeframe):
+    """
+    Realiza la predicción del modelo correspondiente a un timeframe específico con datos de su tabla correspondiente.
+
+    Parámetros:
+    - timeframe (str): Marco de tiempo para el cual se realizará la predicción.
+
+    Retorna:
+    - Tuple: Predicción del modelo y DataFrame con los datos de entrada.
+
+    Ejemplo:
+    ```python
+    prediction, input_data = await model_prediction(timeframe='H')
+    ```
+
+    Notas:
+    - Obtiene los datos de la base de datos para el timeframe especificado.
+    - Prepara los datos de entrada para el modelo.
+    - Carga el modelo entrenado y el escalador asociado.
+    - Realiza la predicción y revierte la escala para obtener el valor en la unidad original.
+    """
     # Extraer los datos de la bbdd
-    query = f'''SELECT * FROM '{timeframe}' ORDER BY fecha DESC LIMIT 15;'''
+    query = f'''SELECT * FROM '{timeframe}' ORDER BY fecha DESC LIMIT {LENGTH};'''
     df = await bbdd_query(query)
     df = df.set_index('fecha')
     df = df.sort_index()
@@ -573,13 +963,32 @@ async def model_prediction(timeframe):
     # Predecir
     yhat = y_scaler.inverse_transform(model.predict(data))
     return yhat[0][0], df
-    #return 0, df
 
 # %% [markdown]
 # ## Funciones Streamlit
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 async def handle_button(timeframe):
+    """
+    Ejecuta la lógica del programa cuando el usuario selecciona un botón correspondiente a un timeframe.
+
+    Parámetros:
+    - timeframe (str): Marco de tiempo para el cual se realizará la operación.
+
+    Retorna:
+    - Tuple: Predicción del modelo, DataFrame con los datos de entrada, y DataFrame con noticias del intervalo de tiempo.
+
+    Ejemplo:
+    ```python
+    prediction, input_data, news_data = await handle_button(timeframe='H')
+    ```
+
+    Notas:
+    - Actualiza la base de datos mediante `bbdd_update`.
+    - Entrena los modelos si no están presentes.
+    - Realiza la predicción utilizando `model_prediction`.
+    - Obtiene las noticias correspondientes al intervalo de tiempo utilizado por el modelo.
+    """
     # Actualizar bbdd
     await bbdd_update()
     # Entrenar los modelos si no lo están
@@ -602,6 +1011,25 @@ async def handle_button(timeframe):
 
 # %% [code] {"jupyter":{"outputs_hidden":false}}
 def streamlit_app():
+    """
+    Configura y ejecuta la aplicación Streamlit para visualizar información financiera y noticias relacionadas con Bitcoin.
+
+    Retorna:
+    - None
+
+    Ejemplo:
+    ```python
+    streamlit_app()
+    ```
+
+    Notas:
+    - La página está dividida en tres secciones: una columna izquierda con botones de timeframes y noticias, y una columna derecha con gráficos.
+    - Utiliza el estado de la sesión de Streamlit para gestionar la selección de timeframe y almacenar datos entre sesiones.
+    - Se actualiza la base de datos con `bbdd_update`.
+    - Entrena modelos si no están presentes con `train_models`.
+    - Realiza predicciones con `model_prediction`.
+    - Muestra información financiera y noticias en la interfaz de usuario utilizando gráficos y tablas.
+    """
     intervals = {
         'H': f'1 hora',
         '4H': f'4 horas',
