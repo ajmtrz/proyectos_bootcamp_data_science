@@ -1087,7 +1087,7 @@ def streamlit_app():
             with st.container():
                 prediccion = st.session_state.get('prediccion')
                 intervalo = intervals[st.session_state.get('timeframe_selected')]
-                mensaje = f"Predicción cambio de precio en {intervalo}: {'+' if prediccion >= 0 else ''}{prediccion:.3f}%"
+                mensaje = f"Predicción cambio de precio en {intervalo}: {'+' if prediccion >= 0 else ''}{100. * prediccion:.3f}%"
                 if prediccion > 0:
                     st.success(mensaje)
                 elif prediccion == 0:
