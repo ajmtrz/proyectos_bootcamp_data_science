@@ -836,19 +836,22 @@ async def training_generators(df):
     - Se dividen los datos en conjuntos de entrenamiento y prueba.
     - Se utilizan generadores de series temporales para facilitar el entrenamiento del modelo.
     """
+    # Desplazar columna objetivo
+    df['close_diff_pct'] = df['close_diff_pct'].shift(-1)
+    df = df.dropna()
     # Escalar características
-    X = df.drop('close_diff_pct', axis=1)
+    X = df.drop('close_diff_pct', axis=1).values
     X_scaler = StandardScaler()
     X = X_scaler.fit_transform(X)
-    # Desplaza y escala columna objetivo
-    y = df['close_diff_pct'].shift(-1).values.reshape(-1, 1)
+    # Escalar columna objetivo
+    y = df['close_diff_pct'].values.reshape(-1, 1)
     y_scaler = StandardScaler()
     y = y_scaler.fit_transform(y)
     # Separar train y test
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, shuffle=False)
     # Preparación de las secuencias temporales
-    train_generator = TimeseriesGenerator(X_train, y_train, length=LENGTH, batch_size=2)
-    test_generator = TimeseriesGenerator(X_test, y_test, length=LENGTH, batch_size=2)
+    train_generator = TimeseriesGenerator(X_train, y_train, length=LENGTH, batch_size=1)
+    test_generator = TimeseriesGenerator(X_test, y_test, length=LENGTH, batch_size=1)
     # Return
     return train_generator, test_generator, X_scaler, y_scaler
 
@@ -881,6 +884,7 @@ async def train_model(table, epochs):
         FROM "{table}"
         """
         df = await bbdd_query(query)
+        df = df.dropna()
         df = df.set_index('fecha')
         df = df.sort_index()
         # debug
@@ -891,7 +895,7 @@ async def train_model(table, epochs):
         # control de parada
         early_stopping = EarlyStopping(
             monitor='val_loss',
-            min_delta=0.001,
+            min_delta=0.0001,
             patience=2,
             verbose=1,
             mode='min',
@@ -907,7 +911,7 @@ async def train_model(table, epochs):
             callbacks=[early_stopping]
         )
         # print resultados
-        print(f"{table} model: Train Loss = {min(history.history['loss'])} | Validation Loss = {min(history.history['val_loss'])}")
+        print(f"\n{table} model: Train Loss = {min(history.history['loss'])} | Validation Loss = {min(history.history['val_loss'])}\n")
         # Guardar objetos
         model_folder = f"{MODELS_FOLDER}/{table}"
         if not os.path.exists(model_folder):
@@ -947,21 +951,24 @@ async def model_prediction(timeframe):
     - Carga el modelo entrenado y el escalador asociado.
     - Realiza la predicción y revierte la escala para obtener el valor en la unidad original.
     """
+    # model path
+    model_folder = f"{MODELS_FOLDER}/{timeframe}"
     # Extraer los datos de la bbdd
     query = f'''SELECT * FROM '{timeframe}' ORDER BY fecha DESC LIMIT {LENGTH};'''
     df = await bbdd_query(query)
+    df = df.dropna()
     df = df.set_index('fecha')
     df = df.sort_index()
-    # Preparar los datos de entrada al modelo
-    data = df.iloc[:, :-1].to_numpy()
-    data = np.expand_dims(data, axis=0)
-    # Cargar el modelo
-    model_folder = f"{MODELS_FOLDER}/{timeframe}"
-    model = load_model(f"{model_folder}/model")
-    # Cargar el escalador
+    # Cargar los escaladores
+    X_scaler = load(f"{model_folder}/X_scaler.joblib")
     y_scaler = load(f"{model_folder}/y_scaler.joblib")
+    # Preparar los datos de entrada al modelo
+    X = X_scaler.transform(df.iloc[:, :-1])
+    X = np.expand_dims(X, axis=0)
+    # Cargar el modelo
+    model = load_model(f"{model_folder}/model")
     # Predecir
-    yhat = y_scaler.inverse_transform(model.predict(data))
+    yhat = y_scaler.inverse_transform(model.predict(X))
     return yhat[0][0], df
 
 # %% [markdown]
@@ -995,7 +1002,6 @@ async def handle_button(timeframe):
     if not os.path.exists(MODELS_FOLDER):
         await train_models(epochs=100)
     # Hacer predicción
-    print(dt.utcnow())
     prediccion, df_model = await model_prediction(timeframe)
     # Obtener las noticias
     min_date = df_model.index.min()
@@ -1053,11 +1059,17 @@ def streamlit_app():
                     if st.button(timeframe):
                         st.session_state['timeframe_selected'] = timeframe
                         st.session_state['prediccion'], st.session_state['df_model'], st.session_state['df_news'] = asyncio.run(handle_button(timeframe))
+    # Datos
+    df_news = st.session_state.get('df_news')
+    df_model = st.session_state.get('df_model')
+    prediccion = st.session_state.get('prediccion')
+    intervalo = intervals[st.session_state.get('timeframe_selected')]
+    # Debug
+    #print(f"Predicción {df_model.index[-1]}: {prediccion}")
     # Esto es lo que se ejecuta si el usuario presiona un timeframe
     if 'timeframe_selected' in st.session_state:
         with col_derecha:
             with st.container():
-                df_model = st.session_state.get('df_model')
                 if df_model is not None:
                     # Crear figura con plotly
                     fig = go.Figure()
@@ -1085,8 +1097,6 @@ def streamlit_app():
                     # Mostrar el gráfico con Streamlit
                     st.plotly_chart(fig, use_container_width=True,)
             with st.container():
-                prediccion = st.session_state.get('prediccion')
-                intervalo = intervals[st.session_state.get('timeframe_selected')]
                 mensaje = f"Predicción cambio de precio en {intervalo}: {'+' if prediccion >= 0 else ''}{100. * prediccion:.3f}%"
                 if prediccion > 0:
                     st.success(mensaje)
@@ -1097,7 +1107,6 @@ def streamlit_app():
         with col_izquierda:
             with st.container():
                 st.markdown('#### Últimas noticias sobre Bitcoin:')
-                df_news = st.session_state.get('df_news')
                 if df_news is not None:
                     df_news['label'] = df_news['label'].replace({
                         'Bearish': 'Bajista',
@@ -1106,30 +1115,10 @@ def streamlit_app():
                         'Somewhat-Bullish': 'Algo alcista',
                         'Bullish': 'Alcista'
                     })
-                    st.dataframe(
-                        df_news[['title', 'url', 'label']],
-                        use_container_width=True,
-                        hide_index=True,
-                        column_order=('url', 'title', 'label'),
-                        column_config={
-                            "url": st.column_config.LinkColumn(
-                                label='Link',
-                                #width='small',
-                                disabled=True,
-                                display_text='Link'
-                            ),
-                            "title": st.column_config.TextColumn(
-                                label='Título',
-                                width='medium',
-                                disabled=False
-                            ),
-                            "label": st.column_config.TextColumn(
-                                label='Sentimiento',
-                                width='small',
-                                disabled=True
-                            )
-                        }
-                    )
+                    df_news['title'] = df_news.apply(lambda row: f'<a href="{row["url"]}" target="_blank">{row["title"]}</a>', axis=1)
+                    html_table = df_news[['title', 'label']].to_html(header=False, escape=False, index=False)
+                    styled_table = f'<div style="max-height:380px; overflow-y:auto;">{html_table}</div>'
+                    st.markdown(styled_table, unsafe_allow_html=True)
 
 # %% [markdown]
 # ## Main
