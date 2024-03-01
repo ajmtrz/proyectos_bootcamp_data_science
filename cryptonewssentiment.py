@@ -1037,12 +1037,12 @@ def streamlit_app():
     - Muestra información financiera y noticias en la interfaz de usuario utilizando gráficos y tablas.
     """
     intervals = {
-        'H': f'1 hora',
-        '4H': f'4 horas',
-        'D': f'1 día'
+        'H': f'1 hour',
+        '4H': f'4 hours',
+        'D': f'1 day'
     }
     # Configuración de la página de Streamlit
-    st.set_page_config(page_title="Proyecto 3 Bootcamp", layout="wide")
+    st.set_page_config(page_title="Bitcoin price prediction sentiment based", layout="wide")
     # División de la página
     col_izquierda, col_derecha = st.columns([1, 1])
     # Inicializa el estado de la sesión por defecto si es necesario
@@ -1052,7 +1052,7 @@ def streamlit_app():
     # Crear un botón para cada timeframe
     with col_izquierda:
         with st.container():
-            st.markdown('##### Seleccione TimeFrame:')
+            st.markdown('##### Select Time Frame:')
             cols = st.columns(4)
             for i, timeframe in enumerate(TIME_FRAMES):
                 with cols[i]:
@@ -1076,14 +1076,14 @@ def streamlit_app():
                     fig.add_trace(go.Scatter(x=df_model.index, y=df_model['close_diff_pct'], mode='lines', name='Cambio de precio', line=dict(color='red')))
                     fig.add_trace(go.Scatter(x=df_model.index, y=df_model['news'], mode='lines', name='Score de noticias', line=dict(color='blue'), yaxis='y2'))
                     fig.update_layout(
-                        title='Cambio de precio y sentimiento de noticias de Bitcoin',
-                        xaxis_title='Fecha',
-                        yaxis_title='Cambio de precio',
+                        title='Bitcoin Price Change and News Sentiment',
+                        xaxis_title='Date',
+                        yaxis_title='Price Change',
                         legend=dict(x=0, y=1, traceorder='normal', orientation='h'),
                     )
                     fig.update_layout(
                         yaxis2=dict(
-                            title='Score de noticias',
+                            title='News Score',
                             overlaying='y',
                             side='right',
                             showgrid=False,
@@ -1097,7 +1097,7 @@ def streamlit_app():
                     # Mostrar el gráfico con Streamlit
                     st.plotly_chart(fig, use_container_width=True,)
             with st.container():
-                mensaje = f"Predicción cambio de precio en {intervalo}: {'+' if prediccion >= 0 else ''}{100. * prediccion:.3f}%"
+                mensaje = f"Price Change Prediction in {intervalo}: {'+' if prediccion >= 0 else ''}{100. * prediccion:.3f}%"
                 if prediccion > 0:
                     st.success(mensaje)
                 elif prediccion == 0:
@@ -1106,15 +1106,8 @@ def streamlit_app():
                     st.error(mensaje)
         with col_izquierda:
             with st.container():
-                st.markdown('#### Últimas noticias sobre Bitcoin:')
+                st.markdown('#### Latest News on Bitcoin:')
                 if df_news is not None:
-                    df_news['label'] = df_news['label'].replace({
-                        'Bearish': 'Bajista',
-                        'Somewhat-Bearish': 'Algo bajista',
-                        'Neutral': 'Neutral',
-                        'Somewhat-Bullish': 'Algo alcista',
-                        'Bullish': 'Alcista'
-                    })
                     df_news['title'] = df_news.apply(lambda row: f'<a href="{row["url"]}" target="_blank">{row["title"]}</a>', axis=1)
                     html_table = df_news[['title', 'label']].to_html(header=False, escape=False, index=False)
                     styled_table = f'<div style="max-height:380px; overflow-y:auto;">{html_table}</div>'
